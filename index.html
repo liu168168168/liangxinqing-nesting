@@ -1,0 +1,2547 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>靓馨情板材排料计算器</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script>
+// Multiple CDN fallbacks - try Chinese CDNs too
+(function() {
+  var cdnList = [
+    'https://cdn.bootcdn.net/ajax/libs/xlsx/0.18.5/xlsx.full.min.js',
+    'https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js',
+    'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js',
+    'https://cdn.staticfile.org/xlsx/0.18.5/xlsx.full.min.js',
+    'https://fastly.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js',
+  ];
+  var idx = 0;
+  function tryNext() {
+    if (typeof XLSX !== 'undefined') return;
+    if (idx >= cdnList.length) return;
+    var s = document.createElement('script');
+    s.src = cdnList[idx++];
+    s.onload = function() { /* success */ };
+    s.onerror = tryNext;
+    document.head.appendChild(s);
+  }
+  window.addEventListener('load', function() {
+    if (typeof XLSX === 'undefined') {
+      tryNext();
+    }
+  });
+})();
+</script>
+<style>
+:root {
+  --bg: #0d1117;
+  --bg2: #161b22;
+  --bg3: #21262d;
+  --line: #30363d;
+  --cyan: #00d4ff;
+  --cyan-dim: #00a8cc;
+  --green: #3fb950;
+  --orange: #d29922;
+  --red: #f85149;
+  --purple: #a371f7;
+  --text: #c9d1d9;
+  --text-dim: #8b949e;
+  --text-bright: #f0f6fc;
+  --grid: rgba(0, 212, 255, 0.06);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  background-image:
+    linear-gradient(var(--grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+/* ===== Header ===== */
+.header {
+  background: linear-gradient(135deg, rgba(0,212,255,0.1) 0%, rgba(0,212,255,0.02) 100%);
+  border-bottom: 1px solid var(--line);
+  padding: 20px 24px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  backdrop-filter: blur(10px);
+}
+
+.header-inner {
+  max-width: 1400px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.logo-icon {
+  width: 40px;
+  height: 40px;
+  border: 2px solid var(--cyan);
+  border-radius: 4px;
+  position: relative;
+  background: rgba(0,212,255,0.05);
+}
+
+.logo-icon::before {
+  content: '';
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  width: 12px;
+  height: 16px;
+  background: var(--cyan);
+  opacity: 0.6;
+}
+
+.logo-icon::after {
+  content: '';
+  position: absolute;
+  top: 16px;
+  left: 22px;
+  width: 10px;
+  height: 14px;
+  background: var(--cyan);
+  opacity: 0.4;
+}
+
+.logo-text h1 {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-bright);
+  letter-spacing: 1px;
+}
+
+.logo-text p {
+  font-size: 11px;
+  color: var(--text-dim);
+  letter-spacing: 2px;
+}
+
+.header-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* ===== Main Layout ===== */
+.main {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 20px 24px 60px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+@media (max-width: 900px) {
+  .main { grid-template-columns: 1fr; }
+}
+
+.card {
+  background: var(--bg2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.card-header {
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(0,212,255,0.03);
+}
+
+.card-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--cyan);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  letter-spacing: 0.5px;
+}
+
+.card-title::before {
+  content: '';
+  width: 3px;
+  height: 14px;
+  background: var(--cyan);
+  border-radius: 2px;
+}
+
+.card-body {
+  padding: 16px 18px;
+}
+
+/* ===== Buttons ===== */
+.btn {
+  padding: 8px 16px;
+  border: 1px solid var(--line);
+  background: var(--bg3);
+  color: var(--text);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: all 0.2s;
+  font-family: inherit;
+}
+
+.btn:hover {
+  border-color: var(--cyan-dim);
+  color: var(--cyan);
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, var(--cyan-dim) 0%, var(--cyan) 100%);
+  color: var(--bg);
+  border-color: var(--cyan);
+  font-weight: 600;
+}
+
+.btn-primary:hover {
+  filter: brightness(1.1);
+  color: var(--bg);
+}
+
+.btn-success {
+  background: linear-gradient(135deg, #238636 0%, var(--green) 100%);
+  color: #fff;
+  border-color: var(--green);
+}
+
+.btn-success:hover { filter: brightness(1.1); color: #fff; }
+
+.btn-sm { padding: 5px 10px; font-size: 12px; }
+.btn-danger { color: var(--red); }
+.btn-danger:hover { border-color: var(--red); color: var(--red); background: rgba(248,81,73,0.1); }
+
+/* ===== Part Table ===== */
+.part-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.part-table th {
+  text-align: left;
+  padding: 8px 10px;
+  color: var(--text-dim);
+  font-weight: 500;
+  font-size: 12px;
+  border-bottom: 1px solid var(--line);
+  background: rgba(0,0,0,0.2);
+}
+
+.part-table td {
+  padding: 6px 10px;
+  border-bottom: 1px solid rgba(48,54,61,0.5);
+}
+
+.part-table input {
+  width: 100%;
+  padding: 6px 8px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  color: var(--text-bright);
+  font-size: 13px;
+  font-family: inherit;
+}
+
+.part-table input:focus {
+  outline: none;
+  border-color: var(--cyan);
+}
+
+.part-table .col-num { width: 36px; color: var(--text-dim); }
+.part-table .col-w { width: 28%; }
+.part-table .col-h { width: 28%; }
+.part-table .col-qty { width: 22%; }
+.part-table .col-act { width: 50px; text-align: center; }
+
+.add-row {
+  margin-top: 10px;
+  text-align: center;
+}
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0,0,0,0.7);
+  z-index: 1000;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.modal-overlay.show { display: flex; }
+
+.modal {
+  background: var(--bg2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  width: 100%;
+  max-width: 560px;
+  max-height: 90vh;
+  overflow-y: auto;
+  animation: modalIn 0.2s ease;
+}
+
+@keyframes modalIn {
+  from { opacity: 0; transform: translateY(-20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.modal-header {
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(63,185,80,0.08);
+}
+
+.modal-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--green);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.modal-title::before {
+  content: '';
+  width: 3px;
+  height: 14px;
+  background: var(--green);
+  border-radius: 2px;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 20px;
+  cursor: pointer;
+  padding: 4px 8px;
+}
+
+.modal-close:hover { color: var(--text-bright); }
+
+.modal-body { padding: 16px 18px; }
+
+.progress-bar {
+  height: 6px;
+  background: var(--bg3);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--green), var(--cyan));
+  border-radius: 3px;
+  transition: width 0.3s;
+}
+
+.progress-text {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-top: 6px;
+  text-align: center;
+}
+
+/* ===== Import Modal ===== */
+.import-upload-area {
+  border: 2px dashed var(--line);
+  border-radius: 8px;
+  padding: 30px 20px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: var(--bg);
+}
+
+.import-upload-area:hover {
+  border-color: var(--purple);
+  background: rgba(163,113,247,0.05);
+}
+
+.import-upload-area.dragging {
+  border-color: var(--purple);
+  background: rgba(163,113,247,0.1);
+}
+
+.import-upload-icon {
+  font-size: 36px;
+  margin-bottom: 8px;
+}
+
+.import-upload-text {
+  font-size: 13px;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+
+.import-upload-hint {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.import-hint-box {
+  border: 1px solid var(--orange);
+  border-radius: 4px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.import-hint-box strong { color: inherit; }
+
+.import-footer {
+  margin-top: 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.import-note {
+  font-size: 11px;
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+
+.import-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* ===== Board Selector ===== */
+.board-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 8px;
+}
+
+.board-item {
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s;
+  background: var(--bg);
+  position: relative;
+}
+
+.board-item:hover {
+  border-color: var(--cyan-dim);
+  background: rgba(0,212,255,0.05);
+}
+
+.board-item.selected {
+  border-color: var(--cyan);
+  background: rgba(0,212,255,0.1);
+}
+
+.board-item.selected::before {
+  content: '✓';
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  color: var(--cyan);
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.board-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-bright);
+  margin-bottom: 3px;
+}
+
+.board-size {
+  font-size: 11px;
+  color: var(--text-dim);
+  font-family: monospace;
+}
+
+.board-select-all {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+/* ===== Options ===== */
+.options-row {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.option input[type="checkbox"] {
+  accent-color: var(--cyan);
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+/* ===== Results ===== */
+.results-section {
+  grid-column: 1 / -1;
+}
+
+.summary-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.stat-card {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 14px;
+  text-align: center;
+}
+
+.stat-value {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--cyan);
+  font-family: 'Courier New', monospace;
+}
+
+.stat-label {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-top: 4px;
+}
+
+.comparison-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+
+.comparison-table th {
+  text-align: left;
+  padding: 10px 12px;
+  color: var(--text-dim);
+  font-weight: 500;
+  font-size: 12px;
+  border-bottom: 1px solid var(--line);
+  background: rgba(0,0,0,0.2);
+}
+
+.comparison-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(48,54,61,0.5);
+}
+
+.comparison-table tr:hover {
+  background: rgba(0,212,255,0.03);
+}
+
+.comparison-table tr.best {
+  background: rgba(63,185,80,0.1);
+}
+
+.comparison-table .util-bar {
+  width: 80px;
+  height: 8px;
+  background: var(--bg3);
+  border-radius: 4px;
+  overflow: hidden;
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: 8px;
+}
+
+.comparison-table .util-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--green), var(--cyan));
+  border-radius: 4px;
+  transition: width 0.5s ease;
+}
+
+/* ===== Nesting Visualization ===== */
+.sheets-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  justify-content: center;
+}
+
+.sheet-card {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 12px;
+  flex: 0 0 auto;
+}
+
+.sheet-label {
+  font-size: 12px;
+  color: var(--text-dim);
+  margin-bottom: 8px;
+  text-align: center;
+  font-family: monospace;
+}
+
+.sheet-svg {
+  display: block;
+  margin: 0 auto;
+}
+
+/* ===== History ===== */
+.history-list {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.history-item {
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(48,54,61,0.5);
+  cursor: pointer;
+  transition: background 0.15s;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.history-item:hover {
+  background: rgba(0,212,255,0.05);
+}
+
+.history-info .h-title {
+  font-size: 13px;
+  color: var(--text-bright);
+}
+
+.history-info .h-meta {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-top: 2px;
+}
+
+.history-del {
+  color: var(--text-dim);
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
+  padding: 4px 8px;
+  opacity: 0;
+  transition: all 0.15s;
+}
+
+.history-item:hover .history-del { opacity: 1; }
+.history-del:hover { color: var(--red); }
+
+/* ===== Footer ===== */
+.footer {
+  text-align: center;
+  padding: 20px;
+  color: var(--text-dim);
+  font-size: 12px;
+  border-top: 1px solid var(--line);
+}
+
+/* ===== Scrollbar ===== */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--line); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+
+/* ===== Animation ===== */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.card { animation: fadeInUp 0.4s ease both; }
+.card:nth-child(2) { animation-delay: 0.1s; }
+
+/* ===== Toast ===== */
+.toast {
+  position: fixed;
+  bottom: 30px;
+  left: 50%;
+  transform: translateX(-50%) translateY(100px);
+  background: var(--bg3);
+  border: 1px solid var(--cyan);
+  color: var(--cyan);
+  padding: 12px 24px;
+  border-radius: 6px;
+  font-size: 13px;
+  z-index: 1000;
+  transition: transform 0.3s ease;
+}
+
+.toast.show {
+  transform: translateX(-50%) translateY(0);
+}
+
+.empty-state {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--text-dim);
+  font-size: 13px;
+}
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+  <div class="header-inner">
+    <div class="logo">
+      <div class="logo-icon"></div>
+      <div class="logo-text">
+        <h1>靓馨情板材排料计算器</h1>
+        <p>SHEET NESTING CALCULATOR</p>
+      </div>
+    </div>
+    <div class="header-actions">
+      <button class="btn" style="border-color:var(--purple);color:var(--purple);" onclick="openImport()">📊 表格导入</button>
+      <button class="btn" onclick="loadDemo()">示例数据</button>
+      <button class="btn" onclick="clearAll()">清空</button>
+      <button class="btn btn-primary" onclick="calculate()">计算排料</button>
+    </div>
+  </div>
+</div>
+
+<!-- Main -->
+<div class="main">
+
+  <!-- Part Input -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">零件尺寸</div>
+      <span style="font-size:11px;color:var(--text-dim);">单位：mm</span>
+    </div>
+    <div class="card-body">
+      <table class="part-table">
+        <thead>
+          <tr>
+            <th class="col-num">#</th>
+            <th class="col-w">宽度</th>
+            <th class="col-h">高度</th>
+            <th class="col-qty">数量</th>
+            <th class="col-act"></th>
+          </tr>
+        </thead>
+        <tbody id="partRows"></tbody>
+      </table>
+      <div class="add-row">
+        <button class="btn btn-sm" onclick="addPartRow()">+ 添加零件</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Board Sizes -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">板材规格（可多选）</div>
+    </div>
+    <div class="card-body">
+      <div class="board-select-all">
+        <button class="btn btn-sm" onclick="selectAllBoards(true)">全选</button>
+        <button class="btn btn-sm" onclick="selectAllBoards(false)">全不选</button>
+        <button class="btn btn-sm" onclick="selectCommon('4x6','4x8')">4×6 + 4×8</button>
+        <button class="btn btn-sm" onclick="selectCommon('4x6','4x7','4x8','4x10','4x12')">4尺系列</button>
+        <button class="btn btn-sm" onclick="selectCommon('5x6','5x8','5x10','5x12')">5尺系列</button>
+      </div>
+      <div class="board-grid" id="boardGrid"></div>
+      <div class="custom-board" style="margin-top:12px;padding:10px;border:1px dashed var(--line);border-radius:6px;">
+        <div style="font-size:12px;color:var(--text-dim);margin-bottom:8px;">自定义规格</div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <input type="number" id="customBoardW" placeholder="宽度 mm" onkeydown="if(event.key==='Enter')addCustomBoard()" style="flex:1;min-width:100px;padding:6px 8px;background:var(--bg);border:1px solid var(--line);border-radius:4px;color:var(--text-bright);font-size:12px;font-family:inherit;">
+          <span style="color:var(--text-dim);font-size:12px;">×</span>
+          <input type="number" id="customBoardH" placeholder="高度 mm" onkeydown="if(event.key==='Enter')addCustomBoard()" style="flex:1;min-width:100px;padding:6px 8px;background:var(--bg);border:1px solid var(--line);border-radius:4px;color:var(--text-bright);font-size:12px;font-family:inherit;">
+          <button class="btn btn-sm" onclick="addCustomBoard()">添加</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Options -->
+  <div class="card" style="grid-column:1/-1;">
+    <div class="card-header">
+      <div class="card-title">计算选项</div>
+    </div>
+    <div class="card-body">
+      <div class="options-row">
+        <label class="option">
+          <input type="checkbox" id="optRotate" checked>
+          <span>允许旋转90°</span>
+        </label>
+        <label class="option">
+          <input type="checkbox" id="optKerf" checked>
+          <span>考虑锯路</span>
+          <input type="number" id="kerfSize" value="3" style="width:50px;padding:4px 6px;background:var(--bg);border:1px solid var(--line);border-radius:4px;color:var(--text-bright);font-size:12px;" min="0" step="0.5"> mm
+        </label>
+        <label class="option">
+          <input type="checkbox" id="optMix" checked>
+          <span>多规格混合排料</span>
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <!-- Results -->
+  <div class="card results-section" id="resultsCard" style="display:none;">
+    <div class="card-header">
+      <div class="card-title">计算结果</div>
+      <button class="btn btn-success btn-sm" onclick="exportPDF()">导出PDF</button>
+    </div>
+    <div class="card-body">
+      <div class="summary-stats" id="summaryStats"></div>
+
+      <div style="margin-bottom:8px;font-size:13px;color:var(--text-dim);">各规格对比：</div>
+      <table class="comparison-table" id="comparisonTable">
+        <thead>
+          <tr>
+            <th>板材规格</th>
+            <th>尺寸</th>
+            <th>张数</th>
+            <th>总件数</th>
+            <th>利用率</th>
+            <th>总废料</th>
+          </tr>
+        </thead>
+        <tbody id="comparisonBody"></tbody>
+      </table>
+
+      <div style="margin-top:20px;margin-bottom:8px;font-size:13px;color:var(--text-dim);">排料图（最优方案）：</div>
+      <div class="sheets-container" id="sheetsContainer"></div>
+    </div>
+  </div>
+
+  <!-- History -->
+  <div class="card" style="grid-column:1/-1;">
+    <div class="card-header">
+      <div class="card-title">历史记录</div>
+      <button class="btn btn-sm" onclick="clearHistory()">清空历史</button>
+    </div>
+    <div class="card-body">
+      <div class="history-list" id="historyList">
+        <div class="empty-state">暂无历史记录</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="footer">
+  靓馨情板材排料计算器 · 离线可用 · 数据保存在本地
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- Import Modal -->
+<div class="modal-overlay" id="importModal">
+  <div class="modal" style="max-width:680px;">
+    <div class="modal-header">
+      <div class="modal-title" style="color:var(--purple);">
+        <span style="width:3px;height:14px;background:var(--purple);border-radius:2px;margin-right:8px;display:inline-block;"></span>
+        表格文件导入
+      </div>
+      <button class="modal-close" onclick="closeImport()">×</button>
+    </div>
+    <div class="modal-body">
+      <div style="display:flex;gap:4px;margin-bottom:14px;border-bottom:1px solid var(--line);padding-bottom:0;">
+        <button id="tabFile" onclick="switchImportTab('file')" style="padding:8px 16px;background:none;border:none;color:var(--purple);font-size:13px;cursor:pointer;border-bottom:2px solid var(--purple);font-weight:600;font-family:inherit;">📄 文件导入</button>
+        <button id="tabPaste" onclick="switchImportTab('paste')" style="padding:8px 16px;background:none;border:none;color:var(--text-dim);font-size:13px;cursor:pointer;border-bottom:2px solid transparent;font-family:inherit;">📋 粘贴文本</button>
+      </div>
+
+      <div id="importFileTab">
+      <div class="import-hint-box" style="border-color:var(--purple);background:rgba(163,113,247,0.1);color:var(--purple);">
+        <strong>💡 支持格式</strong><br>
+        • Excel (.xlsx, .xls)、CSV、TXT 文本文件<br>
+        • 自动识别「宽、高、数量」列，也支持手动指定<br>
+        • 第一行为表头也能自动识别
+      </div>
+
+      <div class="import-upload-area" id="importUpload" onclick="document.getElementById('importFileInput').click()" style="border-color:var(--purple);">
+        <div class="import-upload-icon">📊</div>
+        <div class="import-upload-text">点击上传表格文件 或 拖拽到此处</div>
+        <div class="import-upload-hint">支持 .xlsx / .xls / .xlsm / .csv / .txt</div>
+        <input type="file" id="importFileInput" accept=".xlsx,.xls,.xlsm,.xlsb,.csv,.txt,.ods" style="display:none" onchange="handleImportFile(event)">
+      </div>
+
+      <div id="xlsxStatusBar" style="margin-top:10px;padding:8px 12px;background:rgba(210,153,34,0.08);border:1px solid var(--orange);border-radius:4px;display:flex;align-items:center;justify-content:space-between;gap:10px;">
+        <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:0;">
+          <span style="font-size:16px;">⏳</span>
+          <div style="font-size:12px;line-height:1.5;color:var(--orange);">
+            <div><strong>Excel 解析库加载中</strong>（首次使用需联网下载，约 200KB）</div>
+            <div style="font-size:11px;opacity:0.8;margin-top:2px;">CSV/TXT 文件可直接解析，或使用「粘贴文本」模式无需等待</div>
+          </div>
+        </div>
+        <button class="btn btn-sm" onclick="switchImportTab('paste');showToast('已切换到粘贴文本模式')" style="flex-shrink:0;background:var(--orange);color:#fff;border-color:var(--orange);">用粘贴模式 →</button>
+      </div>
+
+      <div id="importSheetSelect" style="display:none;margin-top:12px;">
+        <div style="font-size:12px;color:var(--text-dim);margin-bottom:6px;">选择工作表：</div>
+        <select id="importSheetSel" style="width:100%;padding:8px;background:var(--bg);border:1px solid var(--line);border-radius:4px;color:var(--text-bright);font-family:inherit;" onchange="loadImportSheet()">
+        </select>
+      </div>
+
+      <div id="importColumnMap" style="display:none;margin-top:12px;">
+        <div style="font-size:12px;color:var(--text-dim);margin-bottom:8px;">列映射（自动识别，可调整）：</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
+          <div>
+            <div style="font-size:11px;color:var(--text-dim);margin-bottom:4px;">宽度列</div>
+            <select id="mapWidth" style="width:100%;padding:6px;background:var(--bg);border:1px solid var(--line);border-radius:4px;color:var(--text-bright);font-size:12px;font-family:inherit;">
+            </select>
+          </div>
+          <div>
+            <div style="font-size:11px;color:var(--text-dim);margin-bottom:4px;">高度列</div>
+            <select id="mapHeight" style="width:100%;padding:6px;background:var(--bg);border:1px solid var(--line);border-radius:4px;color:var(--text-bright);font-size:12px;font-family:inherit;">
+            </select>
+          </div>
+          <div>
+            <div style="font-size:11px;color:var(--text-dim);margin-bottom:4px;">数量列</div>
+            <select id="mapQty" style="width:100%;padding:6px;background:var(--bg);border:1px solid var(--line);border-radius:4px;color:var(--text-bright);font-size:12px;font-family:inherit;">
+            </select>
+          </div>
+        </div>
+        <div style="margin-top:8px;">
+          <label style="font-size:12px;color:var(--text);display:flex;align-items:center;gap:6px;cursor:pointer;">
+            <input type="checkbox" id="importHasHeader" checked onchange="loadImportSheet()"> 第一行为表头
+          </label>
+        </div>
+      </div>
+      </div><!-- end importFileTab -->
+
+      <div id="importPasteTab" style="display:none;">
+        <div class="import-hint-box" style="border-color:var(--cyan-dim);background:rgba(0,168,204,0.08);color:var(--cyan);">
+          <strong>💡 粘贴文本导入</strong><br>
+          • 无需网络，秒解析，零依赖<br>
+          • 格式自动识别：宽*高=数量 / 宽 高 数量 / CSV<br>
+          • 支持 * × x ＊ 作乘号，= ＝ 作等号<br>
+          • 数量缺省默认按 1 件计算
+        </div>
+
+        <!-- 快速输入 -->
+        <div style="padding:10px 12px;background:rgba(0,168,204,0.04);border:1px solid rgba(0,168,204,0.2);border-radius:6px;margin-bottom:12px;">
+          <div style="font-size:12px;color:var(--text-dim);margin-bottom:8px;">⚡ 快速输入（回车添加下一行）</div>
+          <div style="display:flex;gap:6px;align-items:center;">
+            <input type="number" id="quickW" placeholder="宽度 mm" style="flex:1;padding:8px 10px;background:var(--bg);border:1px solid var(--line);border-radius:4px;color:var(--text-bright);font-size:13px;font-family:inherit;" onkeydown="if(event.key==='Enter'){document.getElementById('quickH').focus();event.preventDefault();}">
+            <span style="color:var(--text-dim);font-size:14px;">×</span>
+            <input type="number" id="quickH" placeholder="高度 mm" style="flex:1;padding:8px 10px;background:var(--bg);border:1px solid var(--line);border-radius:4px;color:var(--text-bright);font-size:13px;font-family:inherit;" onkeydown="if(event.key==='Enter'){document.getElementById('quickQ').focus();event.preventDefault();}">
+            <span style="color:var(--text-dim);font-size:14px;">=</span>
+            <input type="number" id="quickQ" placeholder="数量" value="1" min="1" style="width:70px;padding:8px 10px;background:var(--bg);border:1px solid var(--line);border-radius:4px;color:var(--text-bright);font-size:13px;font-family:inherit;" onkeydown="if(event.key==='Enter'){quickAdd();event.preventDefault();}">
+            <button class="btn btn-sm" onclick="quickAdd()" style="background:linear-gradient(135deg,var(--cyan-dim) 0%,var(--cyan) 100%);border-color:var(--cyan);color:var(--bg);white-space:nowrap;">添加</button>
+          </div>
+        </div>
+
+        <div>
+          <div style="font-size:12px;color:var(--text-dim);margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;">
+            <span>粘贴数据：</span>
+            <span style="font-size:11px;color:var(--text-dim);">Ctrl+Enter 解析</span>
+          </div>
+          <textarea id="pasteTextarea" rows="8" placeholder="示例（多种格式自动识别）：&#10;宽*高=数量&#10;350*500=10&#10;250×600=5&#10;780, 554, 2&#10;900 1200" style="width:100%;padding:10px;background:var(--bg);border:1px solid var(--line);border-radius:4px;color:var(--text-bright);font-size:13px;font-family:monospace;resize:vertical;line-height:1.6;" onkeydown="if(event.ctrlKey && event.key==='Enter'){parsePasteText();event.preventDefault();}"></textarea>
+        </div>
+        <div style="margin-top:10px;display:flex;justify-content:space-between;align-items:center;">
+          <label style="font-size:12px;color:var(--text);display:flex;align-items:center;gap:6px;cursor:pointer;">
+            <input type="checkbox" id="pasteHasHeader"> 第一行为表头
+          </label>
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-sm" onclick="document.getElementById('pasteTextarea').value=''">清空</button>
+            <button class="btn btn-primary" style="background:linear-gradient(135deg,var(--cyan-dim) 0%,var(--cyan) 100%);border-color:var(--cyan);color:var(--bg);" onclick="parsePasteText()">解析文本</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="importValidation" style="display:none;margin-top:12px;">
+        <div style="font-size:12px;color:var(--text-dim);margin-bottom:8px;">数据校验</div>
+        <div id="validationList" style="display:flex;flex-direction:column;gap:6px;"></div>
+      </div>
+
+      <div id="importPreview" style="display:none;margin-top:14px;">
+        <div style="font-size:12px;color:var(--text-dim);margin-bottom:8px;display:flex;justify-content:space-between;">
+          <span>数据预览（前20行）</span>
+          <span id="importCount" style="color:var(--green);"></span>
+        </div>
+        <div style="max-height:240px;overflow:auto;border:1px solid var(--line);border-radius:4px;">
+          <table class="comparison-table" style="margin-bottom:0;font-size:12px;">
+            <thead id="importPreviewHead"></thead>
+            <tbody id="importPreviewBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="import-footer">
+        <div class="import-note">
+          请核对数据后再导入<br>只导入有效的尺寸行
+        </div>
+        <div class="import-actions">
+          <button class="btn" onclick="closeImport()">取消</button>
+          <button class="btn btn-primary" style="background:linear-gradient(135deg,#6e40c9 0%,var(--purple) 100%);border-color:var(--purple);" onclick="importTableData()">导入到表格</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ===== Data =====
+const BOARD_SIZES = [
+  { id: '4x6', name: '4×6尺', w: 1220, h: 1830 },
+  { id: '4x7', name: '4×7尺', w: 1220, h: 2135 },
+  { id: '4x8', name: '4×8尺', w: 1220, h: 2440 },
+  { id: '4x10', name: '4×10尺', w: 1220, h: 3050 },
+  { id: '4x12', name: '4×12尺', w: 1220, h: 3660 },
+  { id: '5x6', name: '5×6尺', w: 1525, h: 1830 },
+  { id: '5x8', name: '5×8尺', w: 1525, h: 2440 },
+  { id: '5x10', name: '5×10尺', w: 1525, h: 3050 },
+  { id: '5x12', name: '5×12尺', w: 1525, h: 3660 },
+  { id: '6x6', name: '6×6尺', w: 1830, h: 1830 },
+  { id: '6x8', name: '6×8尺', w: 1830, h: 2440 },
+  { id: '6x10', name: '6×10尺', w: 1830, h: 3050 },
+  { id: '6x12', name: '6×12尺', w: 1830, h: 3660 },
+  { id: '6x14', name: '6×14尺', w: 1830, h: 4250 },
+  { id: '7x14', name: '7×14尺', w: 2140, h: 4250 },
+];
+
+const COLORS = [
+  '#00d4ff', '#3fb950', '#d29922', '#a371f7', '#f85149',
+  '#58a6ff', '#39c5cf', '#bc8cff', '#ff7b72', '#d2a8ff',
+  '#79c0ff', '#56d364', '#e3b341', '#ff9e64', '#ff7b72',
+];
+
+let parts = [];
+let selectedBoards = new Set(['4x6', '4x8']);
+let lastResult = null;
+
+// ===== Init =====
+function init() {
+  renderBoardGrid();
+  addPartRow();
+  addPartRow();
+  addPartRow();
+  loadHistory();
+}
+
+// ===== Part Rows =====
+function addPartRow(w = '', h = '', q = 1) {
+  const tbody = document.getElementById('partRows');
+  const idx = tbody.children.length + 1;
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td class="col-num">${idx}</td>
+    <td><input type="number" value="${w}" placeholder="宽度" min="1" onchange="updateParts()"></td>
+    <td><input type="number" value="${h}" placeholder="高度" min="1" onchange="updateParts()"></td>
+    <td><input type="number" value="${q}" min="1" onchange="updateParts()"></td>
+    <td class="col-act"><button class="btn btn-sm btn-danger" onclick="removePartRow(this)">×</button></td>
+  `;
+  tbody.appendChild(tr);
+}
+
+function removePartRow(btn) {
+  const tr = btn.closest('tr');
+  tr.remove();
+  renumberRows();
+  updateParts();
+}
+
+function renumberRows() {
+  const rows = document.querySelectorAll('#partRows tr');
+  rows.forEach((r, i) => {
+    r.querySelector('.col-num').textContent = i + 1;
+  });
+}
+
+function updateParts() {
+  const rows = document.querySelectorAll('#partRows tr');
+  parts = [];
+  rows.forEach(r => {
+    const inputs = r.querySelectorAll('input');
+    const w = parseInt(inputs[0].value);
+    const h = parseInt(inputs[1].value);
+    const q = parseInt(inputs[2].value);
+    if (w > 0 && h > 0 && q > 0) {
+      parts.push({ w, h, q });
+    }
+  });
+}
+
+function clearAll() {
+  document.getElementById('partRows').innerHTML = '';
+  parts = [];
+  addPartRow();
+  addPartRow();
+  addPartRow();
+  document.getElementById('resultsCard').style.display = 'none';
+}
+
+function loadDemo() {
+  document.getElementById('partRows').innerHTML = '';
+  const demo = [
+    { w: 900, h: 1200, q: 2 },
+    { w: 1000, h: 2000, q: 2 },
+    { w: 790, h: 790, q: 2 },
+    { w: 760, h: 1200, q: 2 },
+    { w: 554, h: 780, q: 2 },
+    { w: 252, h: 780, q: 2 },
+  ];
+  demo.forEach(p => addPartRow(p.w, p.h, p.q));
+  updateParts();
+  showToast('已加载示例数据');
+}
+
+// ===== Board Grid =====
+function renderBoardGrid() {
+  const grid = document.getElementById('boardGrid');
+  grid.innerHTML = '';
+  BOARD_SIZES.forEach(b => {
+    const div = document.createElement('div');
+    div.className = 'board-item' + (selectedBoards.has(b.id) ? ' selected' : '');
+    if (b.custom) div.style.position = 'relative';
+    div.innerHTML = `
+      ${b.custom ? `<span class="custom-board-del" data-id="${b.id}" title="删除" style="position:absolute;top:4px;right:4px;width:18px;height:18px;line-height:16px;text-align:center;border-radius:50%;background:rgba(248,81,73,0.2);color:var(--red);font-size:12px;cursor:pointer;z-index:2;">×</span>` : ''}
+      <div class="board-name">${b.name}</div>
+      <div class="board-size">${b.w} × ${b.h}</div>
+    `;
+    div.onclick = (e) => {
+      if (e.target.classList.contains('custom-board-del')) {
+        e.stopPropagation();
+        removeCustomBoard(e.target.dataset.id);
+      } else {
+        toggleBoard(b.id);
+      }
+    };
+    grid.appendChild(div);
+  });
+}
+
+function removeCustomBoard(id) {
+  const idx = BOARD_SIZES.findIndex(b => b.id === id);
+  if (idx >= 0) {
+    BOARD_SIZES.splice(idx, 1);
+    selectedBoards.delete(id);
+    renderBoardGrid();
+    showToast('已删除自定义规格');
+  }
+}
+
+function toggleBoard(id) {
+  if (selectedBoards.has(id)) {
+    selectedBoards.delete(id);
+  } else {
+    selectedBoards.add(id);
+  }
+  renderBoardGrid();
+}
+
+function selectAllBoards(sel) {
+  if (sel) {
+    BOARD_SIZES.forEach(b => selectedBoards.add(b.id));
+  } else {
+    selectedBoards.clear();
+  }
+  renderBoardGrid();
+}
+
+function selectCommon(...ids) {
+  selectedBoards = new Set(ids);
+  renderBoardGrid();
+}
+
+function addCustomBoard() {
+  const w = parseFloat(document.getElementById('customBoardW').value);
+  const h = parseFloat(document.getElementById('customBoardH').value);
+  if (!w || !h || w <= 0 || h <= 0) {
+    showToast('请输入有效的宽度和高度');
+    return;
+  }
+  if (w > 10000 || h > 10000) {
+    showToast('尺寸太大了，请确认单位是 mm');
+    return;
+  }
+
+  // Check if already exists
+  const id = `custom_${w}x${h}`;
+  const existing = BOARD_SIZES.find(b => b.id === id);
+  if (existing) {
+    selectedBoards.add(id);
+    renderBoardGrid();
+    showToast('该规格已存在，已选中');
+    return;
+  }
+
+  // Add to BOARD_SIZES
+  BOARD_SIZES.push({
+    id: id,
+    name: `${w}×${h}`,
+    w: w,
+    h: h,
+    custom: true
+  });
+  selectedBoards.add(id);
+  renderBoardGrid();
+
+  // Clear inputs
+  document.getElementById('customBoardW').value = '';
+  document.getElementById('customBoardH').value = '';
+
+  showToast(`已添加自定义规格 ${w}×${h} mm`);
+}
+
+// ===== Nesting Algorithm =====
+function nestParts(boardW, boardH, partList, allowRotate, kerf) {
+  const sheets = [];
+  let remaining = [];
+
+  partList.forEach(p => {
+    for (let i = 0; i < p.q; i++) {
+      remaining.push({ w: p.w, h: p.h, area: p.w * p.h, rotated: false });
+    }
+  });
+
+  remaining.sort((a, b) => b.area - a.area);
+
+  const totalArea = remaining.reduce((s, p) => s + p.area, 0);
+  const boardArea = boardW * boardH;
+
+  while (remaining.length > 0) {
+    const sheet = { pieces: [], w: boardW, h: boardH };
+    const placed = placeInSheet(sheet, remaining, allowRotate, kerf);
+    if (placed === 0) break; // shouldn't happen with valid sizes
+    remaining = remaining.filter(p => !p._placed);
+    sheets.push(sheet);
+  }
+
+  const usedArea = sheets.reduce((s, sh) => s + sh.pieces.reduce((ps, p) => ps + p.area, 0), 0);
+  const totalBoardArea = sheets.length * boardArea;
+  const utilization = totalBoardArea > 0 ? (usedArea / totalBoardArea) * 100 : 0;
+
+  return {
+    sheets,
+    count: sheets.length,
+    totalPieces: partList.reduce((s, p) => s + p.q, 0),
+    utilization: Math.round(utilization * 10) / 10,
+    wasteArea: totalBoardArea - usedArea,
+    totalArea,
+  };
+}
+
+function placeInSheet(sheet, parts, allowRotate, kerf) {
+  // Shelf algorithm - place from bottom up, left to right
+  let placedCount = 0;
+  let currentY = 0;
+  const boardW = sheet.w;
+  const boardH = sheet.h;
+  const k = kerf || 0;
+
+  while (currentY < boardH) {
+    // Find the tallest piece that fits in remaining height
+    // Build a shelf
+    let shelfHeight = 0;
+    let currentX = 0;
+    let shelfPieces = [];
+
+    for (let i = 0; i < parts.length; i++) {
+      const p = parts[i];
+      if (p._placed) continue;
+
+      let pw = p.w + k;
+      let ph = p.h + k;
+
+      // Try normal orientation
+      if (currentY + ph <= boardH && currentX + pw <= boardW) {
+        p._placed = true;
+        p._x = currentX;
+        p._y = currentY;
+        p._rotated = false;
+        p._dispW = p.w;
+        p._dispH = p.h;
+        sheet.pieces.push(p);
+        shelfPieces.push(p);
+        currentX += pw;
+        if (ph > shelfHeight) shelfHeight = ph;
+        placedCount++;
+        continue;
+      }
+
+      // Try rotated
+      if (allowRotate && p.w !== p.h) {
+        let rw = p.h + k;
+        let rh = p.w + k;
+        if (currentY + rh <= boardH && currentX + rw <= boardW) {
+          p._placed = true;
+          p._x = currentX;
+          p._y = currentY;
+          p._rotated = true;
+          p._dispW = p.h;
+          p._dispH = p.w;
+          sheet.pieces.push(p);
+          shelfPieces.push(p);
+          currentX += rw;
+          if (rh > shelfHeight) shelfHeight = rh;
+          placedCount++;
+          continue;
+        }
+      }
+    }
+
+    if (shelfPieces.length === 0) break;
+    currentY += shelfHeight;
+  }
+
+  return placedCount;
+}
+
+// ===== Calculate =====
+function calculate() {
+  updateParts();
+
+  if (parts.length === 0) {
+    showToast('请输入零件尺寸');
+    return;
+  }
+  if (selectedBoards.size === 0) {
+    showToast('请选择至少一种板材规格');
+    return;
+  }
+
+  const allowRotate = document.getElementById('optRotate').checked;
+  const useKerf = document.getElementById('optKerf').checked;
+  const kerf = useKerf ? parseFloat(document.getElementById('kerfSize').value) || 0 : 0;
+  const mixMode = document.getElementById('optMix').checked;
+
+  const results = [];
+  const selected = BOARD_SIZES.filter(b => selectedBoards.has(b.id));
+
+  selected.forEach(b => {
+    const r = nestParts(b.w, b.h, parts, allowRotate, kerf);
+    r.board = b;
+    results.push(r);
+  });
+
+  results.sort((a, b) => {
+    // Sort by count ascending, then utilization descending
+    if (a.count !== b.count) return a.count - b.count;
+    return b.utilization - a.utilization;
+  });
+
+  lastResult = { results, parts: [...parts], timestamp: Date.now() };
+  renderResults(results);
+  saveHistory(results[0]);
+}
+
+// ===== Render Results =====
+function renderResults(results) {
+  const card = document.getElementById('resultsCard');
+  card.style.display = 'block';
+
+  const best = results[0];
+
+  // Summary stats
+  const stats = document.getElementById('summaryStats');
+  stats.innerHTML = `
+    <div class="stat-card">
+      <div class="stat-value">${best.count}</div>
+      <div class="stat-label">最少张数</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">${best.utilization}%</div>
+      <div class="stat-label">综合利用率</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">${best.totalPieces}</div>
+      <div class="stat-label">零件总数</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value" style="font-size:16px;">${best.board.name}</div>
+      <div class="stat-label">最优规格</div>
+    </div>
+  `;
+
+  // Comparison table
+  const tbody = document.getElementById('comparisonBody');
+  tbody.innerHTML = '';
+  results.forEach((r, i) => {
+    const tr = document.createElement('tr');
+    if (i === 0) tr.className = 'best';
+    tr.innerHTML = `
+      <td style="font-weight:${i===0?'600':'400'};color:${i===0?'var(--green)':'var(--text-bright)'}">${r.board.name} ${i===0?'★':''}</td>
+      <td style="font-family:monospace;font-size:12px;">${r.board.w}×${r.board.h}</td>
+      <td>${r.count} 张</td>
+      <td>${r.totalPieces}</td>
+      <td>
+        <span class="util-bar"><span class="util-fill" style="width:${r.utilization}%"></span></span>
+        ${r.utilization}%
+      </td>
+      <td style="font-family:monospace;font-size:12px;">${(r.wasteArea/1000000).toFixed(2)} m²</td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  // Sheet visualizations
+  renderSheets(best);
+}
+
+function renderSheets(result) {
+  const container = document.getElementById('sheetsContainer');
+  container.innerHTML = '';
+
+  const board = result.board;
+  const maxW = 280;
+  const maxH = 400;
+  const scale = Math.min(maxW / board.w, maxH / board.h);
+
+  result.sheets.forEach((sheet, idx) => {
+    const card = document.createElement('div');
+    card.className = 'sheet-card';
+
+    const bw = board.w * scale;
+    const bh = board.h * scale;
+
+    const usedArea = sheet.pieces.reduce((s, p) => s + p.area, 0);
+    const util = Math.round((usedArea / (board.w * board.h)) * 1000) / 10;
+
+    let svg = `<svg class="sheet-svg" width="${bw}" height="${bh}" viewBox="0 0 ${board.w} ${board.h}">
+      <rect x="0" y="0" width="${board.w}" height="${board.h}" fill="#0d1117" stroke="#30363d" stroke-width="2"/>`;
+
+    // Grid
+    const gridStep = 200;
+    for (let x = gridStep; x < board.w; x += gridStep) {
+      svg += `<line x1="${x}" y1="0" x2="${x}" y2="${board.h}" stroke="rgba(0,212,255,0.06)" stroke-width="1"/>`;
+    }
+    for (let y = gridStep; y < board.h; y += gridStep) {
+      svg += `<line x1="0" y1="${y}" x2="${board.w}" y2="${y}" stroke="rgba(0,212,255,0.06)" stroke-width="1"/>`;
+    }
+
+    sheet.pieces.forEach((p, pi) => {
+      const color = COLORS[pi % COLORS.length];
+      svg += `
+        <rect x="${p._x + 1}" y="${p._y + 1}" width="${p._dispW - 2}" height="${p._dispH - 2}"
+              fill="${color}" fill-opacity="0.25" stroke="${color}" stroke-width="1.5"/>
+        <text x="${p._x + p._dispW/2}" y="${p._y + p._dispH/2 - 4}"
+              text-anchor="middle" fill="${color}" font-size="28" font-weight="600"
+              style="font-family:monospace;">${p._dispW}×${p._dispH}</text>
+      `;
+    });
+
+    svg += `</svg>`;
+
+    card.innerHTML = `
+      <div class="sheet-label">第 ${idx + 1} 张 · ${board.name} · 利用率 ${util}%</div>
+      ${svg}
+    `;
+    container.appendChild(card);
+  });
+}
+
+// ===== PDF Export =====
+function exportPDF() {
+  if (!lastResult) {
+    showToast('请先计算');
+    return;
+  }
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF('p', 'mm', 'a4');
+  const pageW = 210;
+  const pageH = 297;
+  const margin = 15;
+
+  const best = lastResult.results[0];
+
+  // Page 1: Summary
+  doc.setFontSize(16);
+  doc.setTextColor(0, 150, 200);
+  doc.text('排料计算报告', pageW / 2, 20, { align: 'center' });
+
+  doc.setFontSize(10);
+  doc.setTextColor(100);
+  doc.text(`日期: ${new Date().toLocaleDateString('zh-CN')}`, pageW / 2, 28, { align: 'center' });
+
+  doc.setDrawColor(0, 150, 200);
+  doc.line(margin, 34, pageW - margin, 34);
+
+  // Summary box
+  doc.setFillColor(240, 248, 255);
+  doc.roundedRect(margin, 40, pageW - 2 * margin, 30, 3, 3, 'F');
+
+  doc.setFontSize(11);
+  doc.setTextColor(0);
+  doc.text(`最优规格: ${best.board.name} (${best.board.w}×${best.board.h}mm)`, margin + 8, 52);
+  doc.text(`板材张数: ${best.count} 张`, margin + 8, 62);
+  doc.text(`零件总数: ${best.totalPieces} 件`, 110, 52);
+  doc.text(`利用率: ${best.utilization}%`, 110, 62);
+
+  // Parts list
+  doc.setFontSize(12);
+  doc.setTextColor(0, 150, 200);
+  doc.text('零件清单', margin, 82);
+
+  doc.setFontSize(9);
+  doc.setTextColor(0);
+  let y = 90;
+  doc.setDrawColor(200);
+  doc.line(margin, y - 3, pageW - margin, y - 3);
+
+  doc.text('序号', margin, y);
+  doc.text('尺寸(mm)', margin + 20, y);
+  doc.text('数量', margin + 70, y);
+  doc.text('面积(m²)', margin + 100, y);
+  y += 5;
+  doc.line(margin, y, pageW - margin, y);
+  y += 6;
+
+  lastResult.parts.forEach((p, i) => {
+    doc.text(`${i + 1}`, margin, y);
+    doc.text(`${p.w} × ${p.h}`, margin + 20, y);
+    doc.text(`${p.q}`, margin + 70, y);
+    doc.text(((p.w * p.h * p.q) / 1000000).toFixed(3), margin + 100, y);
+    y += 7;
+  });
+
+  // Comparison table
+  y += 5;
+  doc.setFontSize(12);
+  doc.setTextColor(0, 150, 200);
+  doc.text('各规格对比', margin, y);
+  y += 8;
+
+  doc.setFontSize(8);
+  doc.setTextColor(0);
+  doc.line(margin, y - 3, pageW - margin, y - 3);
+  doc.text('规格', margin, y);
+  doc.text('尺寸', margin + 25, y);
+  doc.text('张数', margin + 70, y);
+  doc.text('利用率', margin + 95, y);
+  doc.text('废料(m²)', margin + 125, y);
+  y += 4;
+  doc.line(margin, y, pageW - margin, y);
+  y += 6;
+
+  lastResult.results.forEach(r => {
+    doc.text(r.board.name, margin, y);
+    doc.text(`${r.board.w}×${r.board.h}`, margin + 25, y);
+    doc.text(`${r.count}`, margin + 70, y);
+    doc.text(`${r.utilization}%`, margin + 95, y);
+    doc.text((r.wasteArea / 1000000).toFixed(2), margin + 125, y);
+    y += 6;
+  });
+
+  // Page 2+: Sheet diagrams
+  best.sheets.forEach((sheet, idx) => {
+    doc.addPage();
+
+    doc.setFontSize(14);
+    doc.setTextColor(0, 150, 200);
+    doc.text(`排料图 - 第${idx + 1}张 (${best.board.name})`, pageW / 2, 20, { align: 'center' });
+
+    const usedArea = sheet.pieces.reduce((s, p) => s + p.area, 0);
+    const util = Math.round((usedArea / (best.board.w * best.board.h)) * 1000) / 10;
+    doc.setFontSize(9);
+    doc.setTextColor(100);
+    doc.text(`利用率: ${util}%`, pageW / 2, 27, { align: 'center' });
+
+    // Draw board
+    const drawW = pageW - 2 * margin;
+    const drawH = 240;
+    const scale = Math.min(drawW / best.board.w, drawH / best.board.h);
+    const bw = best.board.w * scale;
+    const bh = best.board.h * scale;
+    const ox = (pageW - bw) / 2;
+    const oy = 35;
+
+    doc.setDrawColor(0);
+    doc.setLineWidth(0.5);
+    doc.rect(ox, oy, bw, bh);
+
+    // Grid
+    doc.setDrawColor(230);
+    doc.setLineWidth(0.1);
+    const gridStep = 200;
+    for (let x = gridStep; x < best.board.w; x += gridStep) {
+      doc.line(ox + x * scale, oy, ox + x * scale, oy + bh);
+    }
+    for (let y = gridStep; y < best.board.h; y += gridStep) {
+      doc.line(ox, oy + y * scale, ox + bw, oy + y * scale);
+    }
+
+    // Pieces
+    const colors = [
+      [0, 180, 220], [60, 180, 80], [210, 150, 30],
+      [160, 100, 240], [240, 80, 70], [80, 140, 240],
+    ];
+
+    sheet.pieces.forEach((p, pi) => {
+      const col = colors[pi % colors.length];
+      doc.setFillColor(col[0], col[1], col[2]);
+      doc.setDrawColor(col[0] - 30, col[1] - 30, col[2] - 30);
+      doc.setLineWidth(0.2);
+      doc.rect(
+        ox + p._x * scale + 0.5,
+        oy + p._y * scale + 0.5,
+        p._dispW * scale - 1,
+        p._dispH * scale - 1,
+        'FD'
+      );
+
+      // Label
+      doc.setFontSize(7);
+      doc.setTextColor(255);
+      const label = `${p._dispW}×${p._dispH}`;
+      const px = ox + p._x * scale + p._dispW * scale / 2;
+      const py = oy + p._y * scale + p._dispH * scale / 2;
+      doc.text(label, px, py, { align: 'center' });
+    });
+
+    // Dimension labels
+    doc.setFontSize(8);
+    doc.setTextColor(0);
+    doc.text(`${best.board.w}mm`, ox + bw / 2, oy + bh + 6, { align: 'center' });
+    doc.text(`${best.board.h}mm`, ox - 6, oy + bh / 2, { align: 'right', angle: 90 });
+  });
+
+  const fileName = `排料图_${best.board.name}_${best.totalPieces}件.pdf`;
+  doc.save(fileName);
+  showToast('PDF已导出');
+}
+
+// ===== History =====
+function saveHistory(result) {
+  let history = [];
+  try {
+    history = JSON.parse(localStorage.getItem('nestingHistory') || '[]');
+  } catch (e) {}
+
+  const entry = {
+    id: Date.now(),
+    date: new Date().toLocaleString('zh-CN'),
+    board: result.board.name,
+    boardW: result.board.w,
+    boardH: result.board.h,
+    count: result.count,
+    utilization: result.utilization,
+    totalPieces: result.totalPieces,
+    parts: lastResult.parts,
+  };
+
+  history.unshift(entry);
+  if (history.length > 20) history = history.slice(0, 20);
+  localStorage.setItem('nestingHistory', JSON.stringify(history));
+  loadHistory();
+}
+
+function loadHistory() {
+  let history = [];
+  try {
+    history = JSON.parse(localStorage.getItem('nestingHistory') || '[]');
+  } catch (e) {}
+
+  const list = document.getElementById('historyList');
+  if (history.length === 0) {
+    list.innerHTML = '<div class="empty-state">暂无历史记录</div>';
+    return;
+  }
+
+  list.innerHTML = '';
+  history.forEach(h => {
+    const div = document.createElement('div');
+    div.className = 'history-item';
+    div.innerHTML = `
+      <div class="history-info">
+        <div class="h-title">${h.totalPieces}件 · ${h.board} · ${h.count}张 · 利用率${h.utilization}%</div>
+        <div class="h-meta">${h.date}</div>
+      </div>
+      <button class="history-del" onclick="event.stopPropagation();deleteHistory(${h.id})">×</button>
+    `;
+    div.onclick = () => loadFromHistory(h);
+    list.appendChild(div);
+  });
+}
+
+function loadFromHistory(h) {
+  document.getElementById('partRows').innerHTML = '';
+  h.parts.forEach(p => addPartRow(p.w, p.h, p.q));
+  updateParts();
+  showToast('已加载历史数据');
+}
+
+function deleteHistory(id) {
+  let history = [];
+  try {
+    history = JSON.parse(localStorage.getItem('nestingHistory') || '[]');
+  } catch (e) {}
+  history = history.filter(h => h.id !== id);
+  localStorage.setItem('nestingHistory', JSON.stringify(history));
+  loadHistory();
+}
+
+function clearHistory() {
+  localStorage.removeItem('nestingHistory');
+  loadHistory();
+  showToast('历史记录已清空');
+}
+
+// ===== Toast =====
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.classList.remove('show'), 2000);
+}
+
+// ===== Table Import Functions =====
+let importWorkbook = null;
+let importSheetName = '';
+let importData = [];
+let importHeaders = [];
+
+function openImport() {
+  document.getElementById('importModal').classList.add('show');
+  resetImport();
+  // Reset loading bar state
+  xlsxWaitStart = 0;
+  const bar = document.getElementById('xlsxStatusBar');
+  if (bar && typeof XLSX === 'undefined') {
+    bar.style.background = 'rgba(210,153,34,0.08)';
+    bar.style.borderColor = 'var(--orange)';
+    bar.innerHTML = `
+      <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:0;">
+        <span style="font-size:16px;">⏳</span>
+        <div style="font-size:12px;line-height:1.5;color:var(--orange);">
+          <div><strong>Excel 解析库加载中</strong>（首次使用需联网下载，约 200KB）</div>
+          <div style="font-size:11px;opacity:0.8;margin-top:2px;">CSV/TXT 文件可直接解析，或使用「粘贴文本」模式无需等待</div>
+        </div>
+      </div>
+      <button class="btn btn-sm" onclick="switchImportTab('paste')" style="flex-shrink:0;background:var(--orange);color:#fff;border-color:var(--orange);">用粘贴模式 →</button>`;
+  }
+  updateXlsxStatus();
+
+  // Drag and drop
+  const area = document.getElementById('importUpload');
+  area.ondragover = (e) => { e.preventDefault(); area.classList.add('dragging'); };
+  area.ondragleave = () => area.classList.remove('dragging');
+  area.ondrop = (e) => {
+    e.preventDefault();
+    area.classList.remove('dragging');
+    if (e.dataTransfer.files.length > 0) {
+      processImportFile(e.dataTransfer.files[0]);
+    }
+  };
+}
+
+function closeImport() {
+  document.getElementById('importModal').classList.remove('show');
+}
+
+let importMode = 'file'; // 'file' or 'paste'
+let importPasteData = []; // parsed rows from paste mode
+
+function switchImportTab(tab) {
+  importMode = tab;
+  const tabFile = document.getElementById('tabFile');
+  const tabPaste = document.getElementById('tabPaste');
+  const fileTab = document.getElementById('importFileTab');
+  const pasteTab = document.getElementById('importPasteTab');
+
+  if (tab === 'file') {
+    tabFile.style.color = 'var(--purple)';
+    tabFile.style.borderBottomColor = 'var(--purple)';
+    tabFile.style.fontWeight = '600';
+    tabPaste.style.color = 'var(--text-dim)';
+    tabPaste.style.borderBottomColor = 'transparent';
+    tabPaste.style.fontWeight = 'normal';
+    fileTab.style.display = 'block';
+    pasteTab.style.display = 'none';
+  } else {
+    tabPaste.style.color = 'var(--cyan)';
+    tabPaste.style.borderBottomColor = 'var(--cyan)';
+    tabPaste.style.fontWeight = '600';
+    tabFile.style.color = 'var(--text-dim)';
+    tabFile.style.borderBottomColor = 'transparent';
+    tabFile.style.fontWeight = 'normal';
+    pasteTab.style.display = 'block';
+    fileTab.style.display = 'none';
+    setTimeout(() => {
+      const qw = document.getElementById('quickW');
+      if (qw) qw.focus();
+    }, 50);
+  }
+  // Clear preview when switching tabs
+  document.getElementById('importPreview').style.display = 'none';
+  document.getElementById('importValidation').style.display = 'none';
+}
+
+function updateXlsxStatus() {
+  const bar = document.getElementById('xlsxStatusBar');
+  if (!bar) return;
+  if (typeof XLSX !== 'undefined') {
+    // Loaded successfully - show green
+    bar.style.background = 'rgba(0,169,111,0.08)';
+    bar.style.borderColor = 'var(--green)';
+    bar.innerHTML = `
+      <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:0;">
+        <span style="font-size:16px;">✓</span>
+        <div style="font-size:12px;line-height:1.5;color:var(--green);">
+          <div><strong>Excel 解析库已就绪</strong></div>
+          <div style="font-size:11px;opacity:0.8;margin-top:2px;">支持 .xlsx / .xls / .xlsm / .csv 等格式</div>
+        </div>
+      </div>`;
+  }
+  // If not loaded yet, keep the original loading bar with the "用粘贴模式" button
+}
+
+// Track how long we've been waiting
+let xlsxWaitStart = 0;
+let xlsxWaitSeconds = 0;
+
+// Check XLSX status periodically when modal is open
+setInterval(() => {
+  if (document.getElementById('importModal') && document.getElementById('importModal').classList.contains('show')) {
+    if (typeof XLSX === 'undefined') {
+      if (xlsxWaitStart === 0) xlsxWaitStart = Date.now();
+      xlsxWaitSeconds = Math.floor((Date.now() - xlsxWaitStart) / 1000);
+      updateXlsxLoadingBar(xlsxWaitSeconds);
+    } else {
+      xlsxWaitStart = 0;
+      updateXlsxStatus();
+    }
+  }
+}, 1000);
+
+function updateXlsxLoadingBar(seconds) {
+  const bar = document.getElementById('xlsxStatusBar');
+  if (!bar) return;
+
+  if (seconds >= 10) {
+    // Been waiting too long - show red warning
+    bar.style.background = 'rgba(248,81,73,0.08)';
+    bar.style.borderColor = 'var(--red)';
+    bar.innerHTML = `
+      <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:0;">
+        <span style="font-size:16px;">⚠️</span>
+        <div style="font-size:12px;line-height:1.5;color:var(--red);">
+          <div><strong>Excel 库加载超时（已等 ${seconds} 秒）</strong></div>
+          <div style="font-size:11px;opacity:0.9;margin-top:2px;">网络可能受限，建议改用「粘贴文本」模式，秒解析无需联网</div>
+        </div>
+      </div>
+      <button class="btn btn-sm" onclick="switchImportTab('paste')" style="flex-shrink:0;background:var(--red);color:#fff;border-color:var(--red);">切换粘贴模式 →</button>`;
+  } else if (seconds >= 3) {
+    // Update the loading text with elapsed time
+    const titleEl = bar.querySelector('strong');
+    const hintEl = bar.querySelector('div > div > div:last-child');
+    if (titleEl) titleEl.textContent = `Excel 解析库加载中... 已等 ${seconds} 秒`;
+  }
+}
+
+// Built-in simple CSV/TSV parser (no external library needed)
+function parseSimpleCSV(text) {
+  const lines = text.split(/\r?\n/);
+  const rows = [];
+  for (const line of lines) {
+    if (!line.trim()) { rows.push([]); continue; }
+    // Detect delimiter: tab, comma, semicolon, or space
+    let delimiter = ',';
+    if (line.includes('\t')) delimiter = '\t';
+    else if (line.includes(',')) delimiter = ',';
+    else if (line.includes(';')) delimiter = ';';
+    else delimiter = /\s+/;
+
+    if (delimiter instanceof RegExp) {
+      rows.push(line.trim().split(delimiter));
+    } else {
+      // Simple split - handle quoted fields
+      const fields = [];
+      let field = '';
+      let inQuotes = false;
+      for (let i = 0; i < line.length; i++) {
+        const ch = line[i];
+        if (ch === '"') { inQuotes = !inQuotes; continue; }
+        if (ch === delimiter && !inQuotes) { fields.push(field.trim()); field = ''; continue; }
+        field += ch;
+      }
+      fields.push(field.trim());
+      rows.push(fields);
+    }
+  }
+  return rows;
+}
+
+function quickAdd() {
+  const w = parseFloat(document.getElementById('quickW').value);
+  const h = parseFloat(document.getElementById('quickH').value);
+  const q = parseInt(document.getElementById('quickQ').value) || 1;
+
+  if (!w || !h || w <= 0 || h <= 0) {
+    showToast('请输入有效的宽度和高度');
+    return;
+  }
+
+  const ta = document.getElementById('pasteTextarea');
+  const line = `${w}×${h}=${q}`;
+  ta.value = ta.value ? ta.value + '\n' + line : line;
+
+  // Clear inputs and focus back to width
+  document.getElementById('quickW').value = '';
+  document.getElementById('quickH').value = '';
+  document.getElementById('quickQ').value = '1';
+  document.getElementById('quickW').focus();
+
+  // Auto-parse if we have at least a few lines
+  const lineCount = ta.value.split('\n').filter(l => l.trim()).length;
+  if (lineCount > 0) {
+    parsePasteText();
+  }
+}
+
+function parsePasteText() {
+  const text = document.getElementById('pasteTextarea').value;
+  if (!text.trim()) {
+    showToast('请先粘贴数据');
+    return;
+  }
+
+  const hasHeader = document.getElementById('pasteHasHeader').checked;
+
+  // Detect "宽*高=数量" format (e.g. "350*500=10" or "250×600=5")
+  const lines = text.split(/\r?\n/).filter(l => l.trim());
+  const dimPattern = /^[\s]*(\d+(?:\.\d+)?)\s*[\*×xXｘ＊]\s*(\d+(?:\.\d+)?)\s*[=＝]\s*(\d+(?:\.\d+)?)\s*$/;
+  const headerDimPattern = /宽\s*[\*×xXｘ＊]\s*高\s*[=＝]\s*(数量|件数|数)/i;
+  let dimMatchCount = 0;
+  let hasDimHeader = false;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (i === 0 && headerDimPattern.test(line)) {
+      hasDimHeader = true;
+      continue;
+    }
+    if (dimPattern.test(line)) dimMatchCount++;
+  }
+
+  let rows;
+  let useDimFormat = hasDimHeader || (dimMatchCount > 0 && dimMatchCount / lines.length >= 0.5);
+
+  if (useDimFormat) {
+    // "宽*高=数量" format
+    rows = [];
+    const startIdx = hasDimHeader ? 1 : 0;
+    if (hasDimHeader) {
+      rows.push(['宽', '高', '数量']);
+      // Auto-check header checkbox
+      document.getElementById('pasteHasHeader').checked = true;
+    }
+    for (let i = startIdx; i < lines.length; i++) {
+      const line = lines[i].trim();
+      const m = line.match(dimPattern);
+      if (m) {
+        rows.push([m[1], m[2], m[3]]);
+      } else if (line) {
+        // Not matching, keep as single column for validation to flag
+        rows.push([line]);
+      }
+    }
+  } else {
+    rows = parseSimpleCSV(text);
+  }
+
+  if (rows.length === 0) {
+    showToast('没有解析到数据');
+    return;
+  }
+
+  // Determine headers and build importData (same format as file mode)
+  let headers = [];
+  let dataRows = rows;
+
+  if (hasHeader && rows.length > 0) {
+    headers = rows[0].map(h => String(h || '').trim());
+    dataRows = rows.slice(1);
+  } else {
+    const maxCols = Math.max(...rows.map(r => r.length), 3);
+    headers = [];
+    for (let i = 0; i < maxCols; i++) headers.push('第' + (i + 1) + '列');
+    dataRows = rows;
+  }
+
+  // Build importData as array of objects (same format as XLSX sheet_to_json)
+  importData = [];
+  for (const row of dataRows) {
+    const obj = {};
+    headers.forEach((h, i) => {
+      obj[h] = row[i] !== undefined ? row[i] : '';
+    });
+    importData.push(obj);
+  }
+
+  importHeaders = headers;
+  importMode = 'paste';
+
+  // Populate column mapping selects
+  const wSel = document.getElementById('mapWidth');
+  const hSel = document.getElementById('mapHeight');
+  const qSel = document.getElementById('mapQty');
+  [wSel, hSel, qSel].forEach(s => s.innerHTML = '');
+  importHeaders.forEach(h => {
+    [wSel, hSel, qSel].forEach(s => {
+      const opt = document.createElement('option');
+      opt.value = h;
+      opt.textContent = h;
+      s.appendChild(opt);
+    });
+  });
+
+  // Auto-detect columns
+  autoMapColumns();
+
+  // Render preview
+  renderImportPreview();
+
+  // Hide file-specific sections, show shared sections
+  document.getElementById('importSheetSelect').style.display = 'none';
+  document.getElementById('importColumnMap').style.display = 'block';
+  document.getElementById('importPreview').style.display = 'block';
+}
+
+function resetImport() {
+  document.getElementById('importSheetSelect').style.display = 'none';
+  document.getElementById('importColumnMap').style.display = 'none';
+  document.getElementById('importPreview').style.display = 'none';
+  document.getElementById('importValidation').style.display = 'none';
+  importWorkbook = null;
+  importSheetName = '';
+  importData = [];
+  importHeaders = [];
+  const pt = document.getElementById('pasteTextarea');
+  if (pt) pt.value = '';
+  // Default to paste mode if XLSX is not available, otherwise file mode
+  const defaultTab = (typeof XLSX === 'undefined') ? 'paste' : 'file';
+  importMode = defaultTab;
+  switchImportTab(defaultTab);
+}
+
+function handleImportFile(event) {
+  const file = event.target.files[0];
+  if (file) processImportFile(file);
+  event.target.value = '';
+}
+
+function processImportFile(file) {
+  const ext = file.name.split('.').pop().toLowerCase();
+
+  // If XLSX is not loaded, try built-in CSV parser for CSV/TXT files
+  const xlsxMissing = typeof XLSX === 'undefined';
+  const isTextFile = ['csv', 'txt', 'tsv'].includes(ext);
+
+  if (xlsxMissing && isTextFile) {
+    // Use built-in parser for text files - no XLSX needed
+    const reader = new FileReader();
+    reader.onerror = function() { showToast('文件读取失败，请重试'); };
+    reader.onload = function(e) {
+      try {
+        const text = new TextDecoder('utf-8').decode(new Uint8Array(e.target.result));
+        const rows = parseSimpleCSV(text);
+        if (rows.length === 0) { showToast('文件为空'); return; }
+
+        // Treat as single sheet
+        const hasHeader = document.getElementById('importHasHeader').checked;
+        let headers = [];
+        let dataRows = rows;
+        if (hasHeader && rows.length > 0) {
+          headers = rows[0].map(h => String(h || '').trim());
+          dataRows = rows.slice(1);
+        } else {
+          const maxCols = Math.max(...rows.map(r => r.length), 3);
+          headers = [];
+          for (let i = 0; i < maxCols; i++) headers.push('第' + (i + 1) + '列');
+        }
+
+        importData = [];
+        for (const row of dataRows) {
+          const obj = {};
+          headers.forEach((h, i) => { obj[h] = row[i] !== undefined ? row[i] : ''; });
+          importData.push(obj);
+        }
+        importHeaders = headers;
+        importMode = 'file';
+        importWorkbook = null;
+
+        // Populate selects
+        const wSel = document.getElementById('mapWidth');
+        const hSel = document.getElementById('mapHeight');
+        const qSel = document.getElementById('mapQty');
+        [wSel, hSel, qSel].forEach(s => s.innerHTML = '');
+        importHeaders.forEach(h => {
+          [wSel, hSel, qSel].forEach(s => {
+            const opt = document.createElement('option');
+            opt.value = h; opt.textContent = h; s.appendChild(opt);
+          });
+        });
+
+        autoMapColumns();
+        renderImportPreview();
+
+        document.getElementById('importSheetSelect').style.display = 'none';
+        document.getElementById('importColumnMap').style.display = 'block';
+        document.getElementById('importPreview').style.display = 'block';
+        showToast('已使用内置解析器（CSV/TXT 无需网络）');
+
+      } catch (err) {
+        console.error(err);
+        showToast('文件解析失败: ' + err.message.substring(0, 50));
+      }
+    };
+    reader.readAsArrayBuffer(file);
+    return;
+  }
+
+  if (xlsxMissing) {
+    showToast('Excel 解析库加载中，请稍等几秒再试\n（CSV/TXT 文件或粘贴文本无需等待）');
+    // Try loading from multiple CDNs (Chinese CDNs first)
+    var cdns = [
+      'https://cdn.bootcdn.net/ajax/libs/xlsx/0.18.5/xlsx.full.min.js',
+      'https://cdn.staticfile.org/xlsx/0.18.5/xlsx.full.min.js',
+      'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js',
+      'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js',
+      'https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js',
+    ];
+    var ci = 0;
+    function loadNext() {
+      if (typeof XLSX !== 'undefined' || ci >= cdns.length) return;
+      var s = document.createElement('script');
+      s.src = cdns[ci++];
+      s.onerror = loadNext;
+      document.head.appendChild(s);
+    }
+    loadNext();
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onerror = function() {
+    showToast('文件读取失败，请重试');
+  };
+  reader.onload = function(e) {
+    try {
+      const data = new Uint8Array(e.target.result);
+
+      importWorkbook = XLSX.read(data, { type: 'array' });
+
+      if (!importWorkbook || !importWorkbook.SheetNames || importWorkbook.SheetNames.length === 0) {
+        showToast('文件中没有找到工作表');
+        return;
+      }
+
+      const sheetNames = importWorkbook.SheetNames;
+      const sel = document.getElementById('importSheetSel');
+      sel.innerHTML = '';
+      sheetNames.forEach(name => {
+        const opt = document.createElement('option');
+        opt.value = name;
+        opt.textContent = name;
+        sel.appendChild(opt);
+      });
+
+      document.getElementById('importSheetSelect').style.display = sheetNames.length > 1 ? 'block' : 'none';
+      importSheetName = sheetNames[0];
+      loadImportSheet();
+
+    } catch (err) {
+      console.error('Import error:', err);
+      let msg = '文件解析失败';
+      if (err.message) {
+        if (err.message.includes('Corrupt')) msg = '文件可能已损坏，请确认是有效的 Excel 文件';
+        else if (err.message.includes('zip')) msg = '文件格式不正确，请确认是 .xlsx 或 .xls 文件';
+        else msg = '文件解析失败: ' + err.message.substring(0, 50);
+      }
+      showToast(msg);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function loadImportSheet() {
+  if (!importWorkbook || !importSheetName) return;
+
+  const hasHeader = document.getElementById('importHasHeader').checked;
+  const sheet = importWorkbook.Sheets[importSheetName];
+  const json = XLSX.utils.sheet_to_json(sheet, {
+    header: hasHeader ? 1 : 'A',
+    defval: '',
+    raw: false,
+  });
+
+  if (hasHeader && json.length > 0) {
+    importHeaders = Object.keys(json[0]);
+    importData = json;
+  } else {
+    // No header, use column letters
+    importHeaders = [];
+    importData = [];
+    if (json.length > 0) {
+      const firstRow = json[0];
+      const cols = Object.keys(firstRow).sort();
+      importHeaders = cols.map((c, i) => `第${i+1}列(${c})`);
+      json.forEach(row => {
+        const newRow = {};
+        cols.forEach((c, i) => {
+          newRow[importHeaders[i]] = row[c];
+        });
+        importData.push(newRow);
+      });
+    }
+  }
+
+  // Populate column mapping selects
+  const wSel = document.getElementById('mapWidth');
+  const hSel = document.getElementById('mapHeight');
+  const qSel = document.getElementById('mapQty');
+  [wSel, hSel, qSel].forEach(s => s.innerHTML = '');
+
+  importHeaders.forEach(h => {
+    [wSel, hSel, qSel].forEach(s => {
+      const opt = document.createElement('option');
+      opt.value = h;
+      opt.textContent = h;
+      s.appendChild(opt);
+    });
+  });
+
+  // Auto-detect columns
+  autoMapColumns();
+
+  document.getElementById('importColumnMap').style.display = importHeaders.length > 0 ? 'block' : 'none';
+
+  renderImportPreview();
+}
+
+function autoMapColumns() {
+  const wSel = document.getElementById('mapWidth');
+  const hSel = document.getElementById('mapHeight');
+  const qSel = document.getElementById('mapQty');
+
+  const widthKeywords = ['宽', '宽度', 'w', 'W', 'width', '长', '长度', 'L', 'length'];
+  const heightKeywords = ['高', '高度', 'h', 'H', 'height', '深', '厚度', 'D', 'depth'];
+  const qtyKeywords = ['数', '数量', 'q', 'Q', 'qty', 'count', '件', '个数', 'n', 'N'];
+
+  wSel.value = findBestColumn(importHeaders, widthKeywords) || importHeaders[0] || '';
+  hSel.value = findBestColumn(importHeaders, heightKeywords) || importHeaders[1] || '';
+  qSel.value = findBestColumn(importHeaders, qtyKeywords) || importHeaders[2] || '';
+}
+
+function findBestColumn(headers, keywords) {
+  for (const kw of keywords) {
+    for (const h of headers) {
+      if (h.toLowerCase().includes(kw.toLowerCase())) return h;
+    }
+  }
+  return null;
+}
+
+function renderImportPreview() {
+  const wCol = document.getElementById('mapWidth').value;
+  const hCol = document.getElementById('mapHeight').value;
+  const qCol = document.getElementById('mapQty').value;
+
+  const head = document.getElementById('importPreviewHead');
+  const body = document.getElementById('importPreviewBody');
+
+  head.innerHTML = `<tr>
+    <th style="width:40px;">#</th>
+    <th>宽度</th>
+    <th>高度</th>
+    <th>数量</th>
+    <th style="width:80px;">状态</th>
+  </tr>`;
+
+  body.innerHTML = '';
+
+  // Validation
+  const issues = [];
+  const warnings = [];
+  const info = [];
+  let totalValid = 0;
+  let totalQty = 0;
+  let totalArea = 0;
+  const seen = {}; // for duplicate detection
+  const emptyRows = [];
+  const zeroNegRows = [];
+  const nonNumRows = [];
+  const bigRows = []; // suspiciously large
+  const smallRows = []; // suspiciously small
+  const noQtyRows = [];
+
+  const MAX_DIM = 6000; // reasonable max dimension in mm
+  const MIN_DIM = 10;   // reasonable min dimension in mm
+
+  importData.forEach((row, idx) => {
+    const wRaw = row[wCol];
+    const hRaw = row[hCol];
+    const qRaw = qCol ? row[qCol] : '';
+    const w = parseFloat(wRaw);
+    const h = parseFloat(hRaw);
+    const q = qCol ? parseInt(qRaw) : NaN;
+
+    // Check empty
+    if ((wRaw === '' || wRaw === null || wRaw === undefined) &&
+        (hRaw === '' || hRaw === null || hRaw === undefined)) {
+      emptyRows.push(idx + 1);
+      return;
+    }
+
+    // Check non-numeric
+    const wIsNum = !isNaN(w) && wRaw !== '' && wRaw !== null;
+    const hIsNum = !isNaN(h) && hRaw !== '' && hRaw !== null;
+    if (!wIsNum || !hIsNum) {
+      nonNumRows.push(idx + 1);
+      return;
+    }
+
+    // Check zero/negative
+    if (w <= 0 || h <= 0) {
+      zeroNegRows.push(idx + 1);
+      return;
+    }
+
+    // Quantity defaults
+    const realQ = (isNaN(q) || q <= 0) ? 1 : q;
+    if (isNaN(q) || q <= 0 || qRaw === '' || qRaw === null) {
+      noQtyRows.push(idx + 1);
+    }
+
+    totalValid++;
+    totalQty += realQ;
+    totalArea += w * h * realQ;
+
+    // Suspiciously large
+    if (w > MAX_DIM || h > MAX_DIM) {
+      bigRows.push({ row: idx + 1, w, h });
+    }
+
+    // Suspiciously small
+    if (w < MIN_DIM || h < MIN_DIM) {
+      smallRows.push({ row: idx + 1, w, h });
+    }
+
+    // Duplicate detection
+    const key = `${w}x${h}`;
+    if (!seen[key]) seen[key] = { count: 0, qty: 0, rows: [] };
+    seen[key].count++;
+    seen[key].qty += realQ;
+    seen[key].rows.push(idx + 1);
+  });
+
+  // Build validation messages
+  const valList = document.getElementById('validationList');
+  valList.innerHTML = '';
+
+  // Error level issues
+  if (totalValid === 0) {
+    issues.push({ type: 'error', icon: '✗', text: `没有有效数据行，请检查列映射是否正确` });
+  }
+  if (emptyRows.length > 0) {
+    issues.push({ type: 'error', icon: '✗', text: `空行 ${emptyRows.length} 行（第${formatRowNums(emptyRows)}行），已自动跳过` });
+  }
+  if (nonNumRows.length > 0) {
+    issues.push({ type: 'error', icon: '✗', text: `非数字 ${nonNumRows.length} 行（第${formatRowNums(nonNumRows)}行），无法解析为数字` });
+  }
+  if (zeroNegRows.length > 0) {
+    issues.push({ type: 'error', icon: '✗', text: `零或负数 ${zeroNegRows.length} 行（第${formatRowNums(zeroNegRows)}行），已跳过` });
+  }
+
+  // Warning level
+  if (bigRows.length > 0) {
+    warnings.push({ type: 'warn', icon: '⚠', text: `尺寸过大 ${bigRows.length} 行（超过${MAX_DIM}mm），请确认单位是否正确` });
+  }
+  if (smallRows.length > 0) {
+    warnings.push({ type: 'warn', icon: '⚠', text: `尺寸过小 ${smallRows.length} 行（小于${MIN_DIM}mm），请确认单位是否正确` });
+  }
+  if (noQtyRows.length > 0) {
+    warnings.push({ type: 'warn', icon: '⚠', text: `数量为空 ${noQtyRows.length} 行，已按 1 件计算` });
+  }
+
+  // Duplicate warning
+  const dupKeys = Object.keys(seen).filter(k => seen[k].count > 1);
+  if (dupKeys.length > 0) {
+    warnings.push({ type: 'warn', icon: '⚠', text: `发现 ${dupKeys.length} 组重复尺寸（${dupKeys.slice(0,3).join('、')}${dupKeys.length>3?'…':''}），数量已分别累加` });
+  }
+
+  // Info level
+  if (totalValid > 0) {
+    info.push({ type: 'info', icon: '✓', text: `有效数据 ${totalValid} 行，总件数 ${totalQty} 件，总面积 ${(totalArea/1000000).toFixed(2)} m²` });
+  }
+
+  // Render all validation items
+  const allItems = [...issues, ...warnings, ...info];
+  if (allItems.length > 0) {
+    document.getElementById('importValidation').style.display = 'block';
+    allItems.forEach(item => {
+      const colors = {
+        error: { bg: 'rgba(248,81,73,0.1)', border: 'var(--red)', text: 'var(--red)' },
+        warn: { bg: 'rgba(210,153,34,0.1)', border: 'var(--orange)', text: 'var(--orange)' },
+        info: { bg: 'rgba(0,212,255,0.1)', border: 'var(--cyan)', text: 'var(--cyan)' },
+      };
+      const c = colors[item.type] || colors.info;
+      const div = document.createElement('div');
+      div.style.cssText = `
+        padding: 8px 12px;
+        background: ${c.bg};
+        border: 1px solid ${c.border};
+        border-radius: 4px;
+        font-size: 12px;
+        color: ${c.text};
+        line-height: 1.5;
+        display: flex;
+        gap: 8px;
+        align-items: flex-start;
+      `;
+      div.innerHTML = `<span style="font-weight:bold;flex-shrink:0;">${item.icon}</span><span>${item.text}</span>`;
+      valList.appendChild(div);
+    });
+  } else {
+    document.getElementById('importValidation').style.display = 'none';
+  }
+
+  // Preview table (first 20 rows)
+  const previewData = importData.slice(0, 20);
+  previewData.forEach((row, i) => {
+    const wRaw = row[wCol];
+    const hRaw = row[hCol];
+    const qRaw = qCol ? row[qCol] : '';
+    const w = parseFloat(wRaw);
+    const h = parseFloat(hRaw);
+    const q = qCol ? parseInt(qRaw) : NaN;
+    const realQ = (isNaN(q) || q <= 0) ? 1 : q;
+
+    let status = '✓ 有效';
+    let statusColor = 'var(--green)';
+    let rowBg = '';
+
+    if ((wRaw === '' || wRaw === null) && (hRaw === '' || hRaw === null)) {
+      status = '✗ 空行';
+      statusColor = 'var(--text-dim)';
+      rowBg = 'rgba(139,148,158,0.08)';
+    } else if (isNaN(w) || isNaN(h)) {
+      status = '✗ 非数字';
+      statusColor = 'var(--red)';
+      rowBg = 'rgba(248,81,73,0.08)';
+    } else if (w <= 0 || h <= 0) {
+      status = '✗ 零/负';
+      statusColor = 'var(--red)';
+      rowBg = 'rgba(248,81,73,0.08)';
+    } else if (w > MAX_DIM || h > MAX_DIM) {
+      status = '⚠ 过大';
+      statusColor = 'var(--orange)';
+      rowBg = 'rgba(210,153,34,0.08)';
+    } else if (w < MIN_DIM || h < MIN_DIM) {
+      status = '⚠ 过小';
+      statusColor = 'var(--orange)';
+      rowBg = 'rgba(210,153,34,0.08)';
+    } else if (isNaN(q) || q <= 0) {
+      status = '⚠ 缺数量';
+      statusColor = 'var(--orange)';
+    }
+
+    const tr = document.createElement('tr');
+    if (rowBg) tr.style.background = rowBg;
+    tr.innerHTML = `
+      <td style="color:var(--text-dim);">${i + 1}</td>
+      <td style="font-family:monospace;">${wRaw !== '' && wRaw !== null && wRaw !== undefined ? wRaw : '-'}</td>
+      <td style="font-family:monospace;">${hRaw !== '' && hRaw !== null && hRaw !== undefined ? hRaw : '-'}</td>
+      <td style="font-family:monospace;">${qCol ? (qRaw !== '' && qRaw !== null && qRaw !== undefined ? qRaw : '-') : '1'}</td>
+      <td style="color:${statusColor};font-size:11px;white-space:nowrap;">${status}</td>
+    `;
+    body.appendChild(tr);
+  });
+
+  // Summary
+  document.getElementById('importCount').textContent = `共 ${importData.length} 行，有效 ${totalValid} 行，总件数 ${totalQty}`;
+  document.getElementById('importPreview').style.display = 'block';
+}
+
+function formatRowNums(arr) {
+  if (arr.length <= 5) return arr.join('、');
+  return arr.slice(0, 5).join('、') + `等${arr.length}行`;
+}
+
+function importTableData() {
+  const wCol = document.getElementById('mapWidth').value;
+  const hCol = document.getElementById('mapHeight').value;
+  const qCol = document.getElementById('mapQty').value;
+
+  if (!wCol || !hCol) {
+    showToast('请指定宽度和高度列');
+    return;
+  }
+
+  const validRows = [];
+  importData.forEach(row => {
+    const w = parseFloat(row[wCol]);
+    const h = parseFloat(row[hCol]);
+    const q = qCol ? (parseInt(row[qCol]) || 1) : 1;
+    if (w > 0 && h > 0 && q > 0) {
+      validRows.push({ w, h, q });
+    }
+  });
+
+  if (validRows.length === 0) {
+    showToast('没有有效的数据行');
+    return;
+  }
+
+  // Clear existing and add new
+  document.getElementById('partRows').innerHTML = '';
+  parts = [];
+  validRows.forEach(p => addPartRow(p.w, p.h, p.q));
+  updateParts();
+
+  closeImport();
+  showToast(`已导入 ${validRows.length} 条尺寸`);
+}
+
+// ===== Start =====
+init();
+</script>
+</body>
+</html>
